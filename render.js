@@ -88,7 +88,7 @@
     if (root._bgKey === key) return;
     root._bgKey = key;
 
-    const layers = root.querySelectorAll('.bg');
+    const layers = root._els.layers;
 
     // If a fade is still running, finish it right now.
     if (root._finish) root._finish();
@@ -131,8 +131,12 @@
   // Shrink long text until it fits. Sizes are in cqw, so the result is the same
   // at every box size and only needs to run when the text or style changes.
   function fit(root) {
-    const stage = root.querySelector('.stage');
-    const txt = root.querySelector('.txt');
+    const { stage, txt, title, sub } = root._els;
+    // Nothing to measure. Skipping the layout read matters when a PDF adds many text-free pages.
+    if (!title.textContent && !sub.textContent) {
+      stage.style.setProperty('--k', '1');
+      return;
+    }
     const h = root.clientHeight;
     if (!h || !root.clientWidth) return;
     const maxH = h * (stage.classList.contains('l-lower') ? 0.3 : 0.78);
@@ -159,17 +163,23 @@
       '<img class="logo" alt="">' +
       '<div class="black"></div>';
     root._front = -1; // no background yet
+    // Looked up once here instead of on every render.
+    root._els = {
+      layers: [...root.querySelectorAll('.bg')],
+      scrim: root.querySelector('.scrim'),
+      stage: root.querySelector('.stage'),
+      txt: root.querySelector('.txt'),
+      title: root.querySelector('.title'),
+      sub: root.querySelector('.sub'),
+      logo: root.querySelector('.logo'),
+      black: root.querySelector('.black'),
+    };
   };
 
   // Show a state on a stage. opts: { instant, still } for thumbnails.
   window.renderStage = function (root, s, opts) {
     opts = opts || {};
-    const stage = root.querySelector('.stage');
-    const title = root.querySelector('.title');
-    const sub = root.querySelector('.sub');
-    const logo = root.querySelector('.logo');
-    const black = root.querySelector('.black');
-    const scrim = root.querySelector('.scrim');
+    const { stage, title, sub, logo, black, scrim } = root._els;
     const layout = s.layout || 'center';
     const font = s.font || 'display';
 
@@ -216,15 +226,17 @@
       title.textContent = c.text;
       sub.textContent = c.sub;
       fit(root);
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fit(root));
+      // Measure again only if a font was still loading when we measured.
+      if (document.fonts && document.fonts.status === 'loading') document.fonts.ready.then(() => fit(root));
       stage.classList.remove('swap');
     };
 
+    clearTimeout(root._textTimer); // a quick second change replaces the first
     if (first || opts.instant) {
       apply();
       return;
     }
     stage.classList.add('swap');
-    setTimeout(apply, 220);
+    root._textTimer = setTimeout(apply, 220);
   };
 })();

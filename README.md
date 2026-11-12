@@ -20,7 +20,8 @@ The dependencies are listed in `package.json`, so future installs only need `npm
 - **Slide panel (right):** name, title, subtitle, text layout (centre, left, lower third), font (Anton, Playfair Display, Inter), background and picture fit. Long text shrinks automatically to fit.
 - **Import slides:** click "Import images or PDF" to add image files as slides or turn each page of a PDF into its own slide. PDFs up to 100 MB and 100 pages are supported. Each page is saved as an image in the app's cache folder and shown from there, with a small thumbnail for the list. Imported pictures show whole (letterboxed) rather than cropped.
 - **Programs:** use Save and Open in the run-of-show panel. A saved `.sidlak` file has a matching `.sidlak.assets` folder beside it; keep both together when moving or backing up a program.
-- **Background only:** click a media tile to change just the background. The text stays.
+- **Running a picture or video:** click a media tile to put it on the wall by itself. Any title or subtitle is removed while it shows, and Next and Back carry on from the last slide you sent.
+- **Pictures and videos on a slide:** hover a slide and click the + on its thumbnail, or select it and click the + beside Background. Pick a file and it becomes that slide's picture. A slide shows the title and subtitle you typed on top of its picture or video, so leave both empty to show the picture or video on its own.
 - **Crossfade:** backgrounds fade into each other, and text fades out and back in.
 - **Buttons:** Blackout (or B), Clear text, Logo. The first Logo click asks for an image. "Set logo" changes it. The logo hides the text while it is showing.
 - **Keys:** Space, Right and Down go to the next slide; Left and Up go back; B toggles blackout. The next slide is preloaded on the output.

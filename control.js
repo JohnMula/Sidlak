@@ -34,6 +34,8 @@ let slides = [
 let nextSlideNumber = 5;
 let selectedId = 's1'; // slide shown in the inspector
 let liveId = null;     // slide currently on the wall (null if the wall was changed by hand)
+let cursorId = null;   // last slide sent live; Next and Back carry on from here, even after a media tile or Clear text
+let dragId = null;     // slide being dragged in the list
 
 let state = {
   bg: { kind: 'color', color: '#100e1a' },
@@ -51,7 +53,8 @@ let programName = 'Untitled';
 let dirty = false;
 const stash = new Map(); // slide id -> the picture it had before switching to a solid colour
 
-const rows = new Map(); // slide id -> { el, stage, name, num }
+const rows = new Map();  // slide id -> { el, stage, name, num, badge }
+const tiles = new Map(); // media id -> tile button
 
 const preview = $('preview');
 makeStage(preview);
@@ -68,6 +71,7 @@ import('./pdf-import.js').then(() => {
 });
 
 const findSlide = (id) => slides.find((s) => s.id === id);
+const upcoming = () => slides[slides.findIndex((s) => s.id === cursorId) + 1]; // the slide Next would show
 const mediaBg = (m) => ({ kind: m.kind, url: m.url });
 const slideState = (s) => ({ bg: s.bg, text: s.text || '', sub: s.sub || '', layout: s.layout || 'center', font: s.font || 'display', logoUrl: '', logoVisible: false, blackout: false });
 const mediaState = (m) => slideState({ bg: mediaBg(m) });
@@ -96,11 +100,19 @@ function showSlide(id) {
   const s = findSlide(id);
   if (!s) return;
   liveId = id;
+  cursorId = id;
   selectedId = id;
   push({ ...slideState(s), logoUrl: state.logoUrl, logoVisible: false, blackout: false });
   const next = slides[slides.indexOf(s) + 1];
   window.sidlak.setPreload(next ? [next.bg] : []);
   loadEditor();
+}
+
+// A picture or video from the library runs on its own. Any title or subtitle left over
+// from the last slide is removed, so nothing sits on top of it.
+function showMedia(m) {
+  liveId = null; // the wall no longer matches a slide
+  push({ bg: mediaBg(m), text: '', sub: '', blackout: false });
 }
 
 // ---------- run of show ----------
@@ -111,7 +123,7 @@ function paintSlide(s) {
   renderStage(r.stage, slideState(s), { instant: true, still: true });
   r.name.textContent = s.name;
   r.el.title = s.name;
-  updateNext();
+  if (s === upcoming()) updateNext(); // only the "Next" preview ever shows this slide
 }
 
 function createRow(id) {
@@ -127,8 +139,17 @@ function createRow(id) {
   grip.innerHTML = icon('grip');
   const num = document.createElement('span');
   num.className = 'num';
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb';
   const stage = document.createElement('div');
   makeStage(stage);
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'add-media';
+  add.title = 'Add an image or video to this slide';
+  add.setAttribute('aria-label', 'Add an image or video to this slide');
+  add.innerHTML = icon('plus');
+  thumb.append(stage, add);
   const meta = document.createElement('div');
   meta.className = 'meta';
   const name = document.createElement('span');
@@ -144,7 +165,7 @@ function createRow(id) {
   go.title = 'Send live (double-click)';
   go.setAttribute('aria-label', 'Send live');
   go.innerHTML = icon('play');
-  el.append(grip, num, stage, meta, go);
+  el.append(grip, num, thumb, meta, go);
 
   el.addEventListener('click', () => selectSlide(id));
   el.addEventListener('dblclick', () => showSlide(id));
@@ -152,16 +173,22 @@ function createRow(id) {
     if (e.key === 'Enter' && e.target === el) { e.preventDefault(); showSlide(id); }
   });
   go.addEventListener('click', (e) => { e.stopPropagation(); showSlide(id); });
+  add.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectSlide(id);
+    addMediaToSlide(id);
+  });
+  add.addEventListener('dblclick', (e) => e.stopPropagation()); // never counts as "send live"
 
   // drag to reorder
   el.addEventListener('dragstart', (e) => {
-    window._dragId = id;
+    dragId = id;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
     el.classList.add('dragging');
   });
   el.addEventListener('dragend', () => {
-    window._dragId = null;
+    dragId = null;
     rows.forEach((r) => r.el.classList.remove('dragging', 'drop-before', 'drop-after'));
   });
   const after = (e) => {
@@ -169,7 +196,7 @@ function createRow(id) {
     return e.clientY > box.top + box.height / 2;
   };
   el.addEventListener('dragover', (e) => {
-    if (!window._dragId || window._dragId === id) return;
+    if (!dragId || dragId === id) return;
     e.preventDefault();
     const a = after(e);
     el.classList.toggle('drop-before', !a);
@@ -179,10 +206,10 @@ function createRow(id) {
   el.addEventListener('drop', (e) => {
     e.preventDefault();
     el.classList.remove('drop-before', 'drop-after');
-    if (window._dragId && window._dragId !== id) moveSlideTo(window._dragId, id, after(e));
+    if (dragId && dragId !== id) moveSlideTo(dragId, id, after(e));
   });
 
-  return { el, stage, name, num, badge, go };
+  return { el, stage, name, num, badge };
 }
 
 // Brings the list in line with `slides` without rebuilding rows that already exist.
@@ -281,8 +308,8 @@ async function importSlides() {
     if (!files.length) return;
     for (const file of files) {
       if (file.kind === 'image') {
-        media.push(file);
-        addSlide(imageSlideName(file.name), { ...mediaBg(file), fit: 'contain' });
+        const [item] = addToLibrary([file]);
+        addSlide(imageSlideName(item.name), { ...mediaBg(item), fit: 'contain' });
         changed = true;
       } else {
         const pages = await window.sidlakImportPdfPages(file, (n, total) => {
@@ -300,7 +327,7 @@ async function importSlides() {
   } finally {
     if (changed) {
       syncList();
-      buildMedia();
+      syncMedia();
       loadEditor();
       setDirty(true);
     }
@@ -340,11 +367,13 @@ $('loadProgram').addEventListener('click', async () => {
     );
     selectedId = slides.length ? slides[0].id : null;
     liveId = null;
+    cursorId = null;
     stash.clear();
     $('programStatus').textContent = 'Program loaded.';
     resetList();
+    resetMedia();
     syncList();
-    buildMedia();
+    syncMedia();
     loadEditor();
     setProgramName('Opened program');
     setDirty(false);
@@ -355,34 +384,59 @@ $('loadProgram').addEventListener('click', async () => {
 
 // ---------- media ----------
 
-function buildMedia() {
-  const grid = $('media');
-  grid.textContent = '';
-  $('mediaEmpty').hidden = media.length > 0;
-
-  media.forEach((m) => {
-    const btn = document.createElement('button');
-    btn.className = 'tile';
-    btn.title = `${m.name}: use as the background`;
-    const stage = document.createElement('div');
-    makeStage(stage);
-    renderStage(stage, mediaState(m), { instant: true, still: true });
-    const label = document.createElement('span');
-    label.textContent = m.name;
-    btn.append(stage, label);
-    btn.addEventListener('click', () => {
-      liveId = null; // the wall no longer matches a slide
-      push({ bg: mediaBg(m), blackout: false });
-    });
-    grid.append(btn);
+// Adds picked files to the library and returns the library entries. A file that is
+// already there is not added a second time.
+function addToLibrary(items) {
+  return items.map((item) => {
+    const existing = media.find((m) => m.url === item.url);
+    if (existing) return existing;
+    media.push(item);
+    return item;
   });
+}
+
+function createTile(m) {
+  const btn = document.createElement('button');
+  btn.className = 'tile';
+  btn.title = `${m.name}: show on the wall`;
+  const stage = document.createElement('div');
+  makeStage(stage);
+  renderStage(stage, mediaState(m), { instant: true, still: true });
+  const label = document.createElement('span');
+  label.textContent = m.name;
+  btn.append(stage, label);
+  btn.addEventListener('click', () => showMedia(m));
+  return btn;
+}
+
+// Brings the grid in line with `media` without rebuilding tiles that already exist,
+// so adding one file does not reload every thumbnail.
+function syncMedia() {
+  const ids = new Set(media.map((m) => m.id));
+  tiles.forEach((el, id) => {
+    if (!ids.has(id)) { el.remove(); tiles.delete(id); }
+  });
+  const grid = $('media');
+  media.forEach((m, i) => {
+    let el = tiles.get(m.id);
+    if (!el) { el = createTile(m); tiles.set(m.id, el); }
+    if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
+  });
+  $('mediaEmpty').hidden = media.length > 0;
+}
+
+function resetMedia() {
+  tiles.forEach((el) => el.remove());
+  tiles.clear();
 }
 
 $('addMedia').addEventListener('click', async () => {
   const items = await window.sidlak.pickMedia();
   if (!items.length) return;
-  media = media.concat(items);
-  buildMedia();
+  const before = media.length;
+  addToLibrary(items);
+  if (media.length === before) return; // all of them were already there
+  syncMedia();
   const s = findSlide(selectedId);
   if (s) fillBgSelect(s);
   setDirty(true);
@@ -391,6 +445,39 @@ $('addMedia').addEventListener('click', async () => {
 // ---------- slide inspector ----------
 
 const isLibraryMedia = (bg) => bg.kind !== 'color' && media.some((m) => m.url === bg.url);
+
+// Changes a slide's background. A picture that only this slide has (an imported page or
+// picture) is kept aside first, so it can always be switched back to.
+function setSlideBg(s, bg) {
+  if (s.bg.kind !== 'color' && !isLibraryMedia(s.bg)) stash.set(s.id, s.bg);
+  s.bg = bg;
+}
+
+// The + buttons: pick one image or video and use it as this slide's picture.
+async function addMediaToSlide(id) {
+  let picked;
+  try {
+    picked = await window.sidlak.pickSlideMedia();
+  } catch (error) {
+    alert(`Could not add that file: ${error.message}`);
+    return;
+  }
+  const s = findSlide(id);
+  if (!picked || !s) return;
+
+  const [item] = addToLibrary([picked]);
+  setSlideBg(s, mediaBg(item));
+  selectedId = id;
+  syncMedia();
+  paintSlide(s);
+  loadEditor();
+  setDirty(true);
+
+  // Text on a slide stays on top of its picture or video, so say how to get it on its own.
+  const note = s.text || s.sub ? ` Its title and subtitle show on top. Clear them to show just the ${item.kind}.` : '';
+  $('programStatus').textContent = `Added “${item.name}” to “${s.name}”.${note}`;
+}
+$('edAddMedia').addEventListener('click', () => addMediaToSlide(selectedId));
 
 function fillBgSelect(s) {
   const sel = $('edBg');
@@ -406,8 +493,7 @@ function fillBgSelect(s) {
 
   const inLibrary = isLibraryMedia(s.bg);
   const own = s.bg.kind !== 'color' && !inLibrary; // imported page or picture
-  if (own) add('current', 'This slide\u2019s picture');
-  else if (s.bg.kind === 'color' && stash.has(s.id)) add('current', 'This slide\u2019s picture');
+  if (own || stash.has(s.id)) add('current', 'This slide\u2019s picture');
 
   if (s.bg.kind === 'color') sel.value = 'color';
   else if (inLibrary) sel.value = media.find((m) => m.url === s.bg.url).id;
@@ -463,14 +549,13 @@ $('edBg').addEventListener('change', (e) => {
   const value = e.target.value;
   edit((s) => {
     if (value === 'color') {
-      if (s.bg.kind !== 'color' && !isLibraryMedia(s.bg)) stash.set(s.id, s.bg); // so it can be switched back
-      s.bg = { kind: 'color', color: $('edColor').value };
+      setSlideBg(s, { kind: 'color', color: $('edColor').value });
     } else if (value === 'current') {
       const saved = stash.get(s.id);
       if (saved) s.bg = saved;
     } else {
       const m = media.find((x) => x.id === value);
-      if (m) s.bg = mediaBg(m);
+      if (m) setSlideBg(s, mediaBg(m));
     }
   });
   fillBgSelect(findSlide(selectedId));
@@ -494,6 +579,7 @@ $('edDelete').addEventListener('click', () => {
   slides = slides.filter((x) => x.id !== s.id);
   stash.delete(s.id);
   if (liveId === s.id) liveId = null;
+  if (cursorId === s.id) cursorId = index > 0 ? slides[index - 1].id : null; // Next then shows what took its place
   selectedId = slides.length ? slides[Math.min(index, slides.length - 1)].id : null;
   syncList();
   loadEditor();
@@ -521,7 +607,7 @@ $('logo').addEventListener('click', () => {
 $('setLogo').addEventListener('click', chooseLogo);
 
 function step(offset) {
-  const index = slides.findIndex((s) => s.id === liveId);
+  const index = slides.findIndex((s) => s.id === cursorId);
   const target = offset > 0 ? slides[index + 1] : slides[Math.max(index - 1, 0)];
   if (target) showSlide(target.id);
 }
@@ -529,8 +615,7 @@ $('next').addEventListener('click', () => step(1));
 $('prev').addEventListener('click', () => step(-1));
 
 function updateNext() {
-  const index = slides.findIndex((s) => s.id === liveId);
-  const next = slides[index + 1];
+  const next = upcoming();
   if (next) {
     renderStage(nextPreview, slideState(next), { instant: true, still: true });
     $('nextName').textContent = `Next: ${next.name}`;
@@ -648,6 +733,6 @@ window.sidlak.getDisplays().then((d) => {
   renderStage(preview, state);
   renderDisplays(d);
   syncList();
-  buildMedia();
+  syncMedia();
   loadEditor();
 });

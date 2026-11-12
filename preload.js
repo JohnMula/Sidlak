@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('sidlak', {
   setPreload: (bgs) => ipcRenderer.send('preload:set', bgs),
   onPreload: (cb) => ipcRenderer.on('preload', (_e, b) => cb(b)),
   pickMedia: () => ipcRenderer.invoke('media:pick', 'any'),
+  pickSlideMedia: () => ipcRenderer.invoke('media:pick', 'one').then((items) => items[0] || null),
   pickLogo: () => ipcRenderer.invoke('media:pick', 'image').then((items) => items[0] || null),
   pickSlides: () => ipcRenderer.invoke('slides:pick'),
   cacheImage: (bytes) => ipcRenderer.invoke('cache:save', bytes),

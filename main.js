@@ -175,10 +175,12 @@ function toItem(filePath) {
   return { id: 'm' + ++mediaCounter, name: path.basename(filePath), kind, url };
 }
 
+// mode: 'any' (several images or videos), 'one' (a single image or video, for a slide),
+// 'image' (a single image, for the logo; not added to the library).
 ipcMain.handle('media:pick', async (_e, mode) => {
   const imagesOnly = mode === 'image';
   const result = await dialog.showOpenDialog(controlWin, {
-    properties: imagesOnly ? ['openFile'] : ['openFile', 'multiSelections'],
+    properties: imagesOnly || mode === 'one' ? ['openFile'] : ['openFile', 'multiSelections'],
     filters: [
       {
         name: imagesOnly ? 'Images' : 'Images and videos',
