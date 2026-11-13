@@ -416,9 +416,10 @@ function createControl() {
     minWidth: 960,
     minHeight: 640,
     title: 'Sidlak',
-    backgroundColor: '#100e1a',
+    backgroundColor: '#111113',
     autoHideMenuBar: true,
-    webPreferences,
+    // Auto-advance runs on a timer here, so it must keep ticking even if this window is minimised.
+    webPreferences: { ...webPreferences, backgroundThrottling: false },
   });
   controlWin.loadFile('control.html');
   controlWin.on('close', (e) => {

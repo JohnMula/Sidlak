@@ -24,14 +24,17 @@ The dependencies are listed in `package.json`, so future installs only need `npm
 - **Pictures and videos on a slide:** hover a slide and click the + on its thumbnail, or select it and click the + beside Background. Pick a file and it becomes that slide's picture. A slide shows the title and subtitle you typed on top of its picture or video, so leave both empty to show the picture or video on its own.
 - **Crossfade:** backgrounds fade into each other, and text fades out and back in.
 - **Buttons:** Blackout (or B), Clear text, Logo. The first Logo click asks for an image. "Set logo" changes it. The logo hides the text while it is showing.
-- **Keys:** Space, Right and Down go to the next slide; Left and Up go back; B toggles blackout. The next slide is preloaded on the output.
+- **Keys:** Space, Right, Down and Page Down go to the next slide; Left, Up and Page Up go back; Home and End jump to the first and last slide; B toggles blackout; C clears the text; L toggles Loop; A toggles Auto. Holding a key down does not skip through the show. Ctrl+S saves, Ctrl+O opens, Ctrl+N adds a slide, Ctrl+D duplicates the selected slide. The next and previous slides are preloaded on the output.
+- **Loop:** the Loop button (or L). When on, Next after the last slide goes back to the first, and Back from the first slide goes to the last. When off, Next and Back stop at the ends. The setting is remembered.
+- **Auto:** the Auto button (or A) with a seconds box beside it. Moves to the next slide by itself after that many seconds, with a thin progress bar under the monitor. It counts only while one of your slides is on the wall (not while blacked out, or while a media tile or cleared text is showing), stops at the last slide unless Loop is on, and restarts whenever you send a slide yourself. It always starts switched off.
+- **Views:** switch the run of show between list and grid with the two buttons at its top; drag the edge of the panel to make it wider (double-click the edge to reset). The lightning button turns on "click to go live", so one click sends a slide to the wall instead of just selecting it. The slide that is live is red, the one Next will show is marked NEXT, and the list scrolls to follow the show.
 - **Unsaved changes:** the header shows when the program has changes, and closing the app asks first.
 
 ## Files
 
 - `main.js` - windows, displays, file picking, and checks on what the wall may show
 - `preload.js` - the safe bridge between the windows and `main.js`
-- `control.html` / `control.js` - the run of show, thumbnails, live preview, and controls
+- `control.html` / `control.css` / `control.js` - the run of show, thumbnails, live preview, and controls
 - `pdf-import.js` - PDF page rendering
 - `output.html` / `output.js` - what the audience sees
 - `fonts/` - bundled woff2 files (Inter, Anton, Playfair Display; SIL Open Font License, licences included)

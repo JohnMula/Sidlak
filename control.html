@@ -5,181 +5,23 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' file: data:; media-src 'self' file:">
   <title>Sidlak</title>
   <link rel="stylesheet" href="stage.css">
-  <style>
-    :root {
-      --bg: #19191b;
-      --panel: #202023;
-      --raised: #29292d;
-      --line: #333337;
-      --line-strong: #46464c;
-      --text: #ececee;
-      --muted: #9a9aa3;
-      --live: #e5484d;   /* only ever used for what is on the wall */
-      --radius: 5px;
-    }
-    * { box-sizing: border-box; }
-    [hidden] { display: none !important; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-      color: var(--text);
-      font: 13px/1.4 "Inter", "Segoe UI", system-ui, sans-serif;
-      font-weight: 400;
-    }
-    h2 { margin: 0; font-size: 13px; font-weight: 600; }
-    .ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
-    /* ---- controls ---- */
-    button, select, input {
-      font: inherit; color: var(--text);
-      background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius);
-      padding: 5px 9px; min-width: 0;
-    }
-    button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; white-space: nowrap; }
-    button:hover:not(:disabled) { border-color: var(--line-strong); background: #303035; }
-    button:disabled { opacity: 0.45; cursor: default; }
-    :focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-    input:focus-visible, select:focus-visible { outline-offset: 0; }
-    .btn.primary { background: var(--text); border-color: var(--text); color: #141416; font-weight: 600; }
-    .btn.primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
-    .btn.quiet { background: none; border-color: transparent; color: var(--muted); }
-    .btn.quiet:hover:not(:disabled) { background: var(--raised); color: var(--text); border-color: var(--line); }
-    .btn.icon { padding: 0; width: 26px; height: 26px; }
-    .toggle[aria-pressed="true"] { background: var(--live); border-color: var(--live); color: #fff; }
-    .toggle[aria-pressed="true"]:hover { background: #ee5b60; }
-    kbd {
-      font: 500 11px/1 "Inter", sans-serif; color: var(--muted);
-      padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--bg);
-    }
-    .primary kbd, .toggle[aria-pressed="true"] kbd { color: inherit; background: transparent; border-color: currentColor; opacity: 0.75; }
-    input[type="color"] { height: 30px; padding: 2px; width: 100%; }
-    label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
-    label > input, label > select { width: 100%; color: var(--text); font-size: 13px; }
-
-    /* ---- header ---- */
-    header {
-      display: flex; align-items: center; gap: 16px;
-      height: 44px; padding: 0 14px;
-      border-bottom: 1px solid var(--line);
-    }
-    .brand { font-weight: 800; font-size: 16px; letter-spacing: -0.02em; }
-    .program { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--muted); }
-    .program strong { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .spacer { flex: 1; }
-    .output { display: flex; align-items: center; gap: 8px; }
-    .status { display: flex; align-items: center; gap: 7px; color: var(--muted); margin-right: 4px; }
-    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #55555c; }
-    .status.live { color: var(--text); }
-    .status.live::before { background: var(--live); }
-    .output select { width: 220px; }
-
-    /* ---- layout ---- */
-    main {
-      flex: 1; min-height: 0;
-      display: grid;
-      grid-template-columns: 300px minmax(0, 1fr) 280px;
-    }
-    .col { min-height: 0; min-width: 0; overflow: auto; }
-    .list { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--panel); }
-    .inspector { border-left: 1px solid var(--line); background: var(--panel); padding: 14px; }
-    .center { padding: 16px 18px; display: grid; gap: 16px; align-content: start; }
-
-    /* ---- run of show ---- */
-    .bar { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 14px; }
-    .bar .count { color: var(--muted); }
-    .bar .tools { margin-left: auto; display: flex; gap: 2px; }
-    .rows { flex: 1; min-height: 0; overflow: auto; padding: 2px 0 8px; }
-    .row {
-      display: grid; grid-template-columns: 12px 18px 84px minmax(0, 1fr) auto; align-items: center; gap: 8px;
-      padding: 5px 10px 5px 6px; cursor: default; position: relative;
-    }
-    .row:hover { background: #26262a; }
-    .row.selected { background: var(--raised); }
-    .row.selected::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--text); }
-    .row.dragging { opacity: 0.4; }
-    .row.drop-before { box-shadow: inset 0 2px 0 var(--text); }
-    .row.drop-after { box-shadow: inset 0 -2px 0 var(--text); }
-    .grip { color: #5d5d65; cursor: grab; display: grid; place-items: center; }
-    .row:hover .grip { color: var(--muted); }
-    .num { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
-    .row .stage-root { height: auto; aspect-ratio: 16 / 9; border-radius: 3px; outline: 1px solid var(--line-strong); }
-    .row.live .stage-root { outline: 2px solid var(--live); }
-    .thumb { position: relative; min-width: 0; }
-    .add-media {
-      position: absolute; z-index: 4; right: 3px; bottom: 3px; width: 20px; height: 20px; padding: 0; border-radius: 50%; /* above the stage layers (1-3) */
-      background: rgba(16, 16, 18, 0.85); border-color: rgba(255, 255, 255, 0.4); color: #fff; opacity: 0;
-    }
-    .add-media .ic { width: 12px; height: 12px; }
-    .add-media:hover:not(:disabled) { background: #fff; border-color: #fff; color: #141416; }
-    .row:hover .add-media, .row.selected .add-media, .row:focus-within .add-media { opacity: 1; }
-    .meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
-    .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--live); color: #fff; }
-    .go { opacity: 0; }
-    .row:hover .go, .row.selected .go, .row:focus-within .go { opacity: 1; }
-    .empty { margin: 0; padding: 14px; color: var(--muted); }
-    .foot { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
-    .foot .btn { flex: 1; }
-    .program-status { margin: 0; padding: 0 14px 10px; min-height: 1.4em; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-
-    /* ---- live preview ---- */
-    .preview { height: auto; aspect-ratio: 16 / 9; border-radius: 4px; }
-    .monitor { display: grid; gap: 8px; }
-    .monitor-bar { display: flex; align-items: center; gap: 8px; color: var(--muted); min-height: 20px; }
-    .monitor-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #55555c; }
-    .monitor.on .dot { background: var(--live); }
-    .monitor.on .monitor-bar strong { color: var(--text); }
-    .monitor-bar strong { font-weight: 600; color: var(--muted); }
-    #preview { width: min(100%, calc(46vh * 16 / 9)); outline: 1px solid var(--line-strong); }
-    .monitor.on #preview { outline: 2px solid var(--live); }
-
-    .deck { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
-    .next { width: 190px; display: grid; gap: 6px; color: var(--muted); }
-    .next .name { color: var(--muted); }
-    .next .preview { outline: 1px solid var(--line-strong); }
-    .controls { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(120px, 1fr)); width: min(100%, 340px); }
-    .controls .wide { grid-column: 1 / -1; }
-    .controls .btn { justify-content: space-between; padding: 7px 10px; }
-    .controls .lead { display: inline-flex; align-items: center; gap: 6px; }
-    .logo-pair { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
-    .logo-pair .icon { width: 36px; height: auto; }
-
-    /* ---- media ---- */
-    .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; align-items: start; }
-    .tile { display: grid; gap: 5px; padding: 0; border: 0; background: none; color: var(--muted); text-align: left; justify-content: stretch; }
-    .tile:hover:not(:disabled) { background: none; }
-    .tile .stage-root { height: auto; aspect-ratio: 16 / 9; border-radius: 3px; outline: 1px solid var(--line-strong); transition: outline-color 0.15s; }
-    .tile:hover .stage-root { outline-color: #8a8a93; }
-    .tile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-
-    /* ---- inspector ---- */
-    .inspector h2 { margin-bottom: 12px; }
-    .fields { display: grid; gap: 12px; }
-    .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-    .seg button { border: 0; border-radius: 0; background: none; padding: 6px 4px; color: var(--muted); }
-    .seg button + button { border-left: 1px solid var(--line); }
-    .seg button.on { background: var(--raised); color: var(--text); }
-    .actions { display: grid; gap: 8px; padding-top: 4px; }
-    .actions .danger { color: #f08a8d; }
-    .field-label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    .pick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
-    .pick select { width: 100%; }
-    .pick .icon { width: 34px; height: auto; }
-
-    @media (max-width: 1100px) {
-      main { grid-template-columns: 260px minmax(0, 1fr) 250px; }
-      .output select { width: 160px; }
-    }
-  </style>
+  <link rel="stylesheet" href="control.css">
 </head>
 <body>
-  <header>
-    <div class="brand">Sidlak</div>
-    <div class="program"><strong id="programName">Untitled</strong><span id="dirty" hidden>Unsaved changes</span></div>
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="#fff"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      Sidlak
+    </div>
+    <span class="sep"></span>
+    <div class="program">
+      <strong id="programName">Untitled</strong>
+      <span id="dirty" class="pill warn" hidden>Unsaved changes</span>
+    </div>
+    <div class="file-tools">
+      <button id="loadProgram" class="btn quiet icon" data-icon="folder" title="Open program (Ctrl+O)" aria-label="Open program"></button>
+      <button id="saveProgram" class="btn quiet icon" data-icon="save" title="Save program (Ctrl+S)" aria-label="Save program"></button>
+    </div>
     <div class="spacer"></div>
     <div class="output">
       <span id="status" class="status">Output closed</span>
@@ -188,103 +30,157 @@
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <section class="col list" aria-label="Run of show">
       <div class="bar">
         <h2>Run of show</h2>
         <span id="count" class="count"></span>
         <div class="tools">
-          <button id="loadProgram" class="btn quiet icon" data-icon="folder" title="Open program" aria-label="Open program"></button>
-          <button id="saveProgram" class="btn quiet icon" data-icon="save" title="Save program" aria-label="Save program"></button>
+          <button id="clickLive" class="btn quiet icon mode" data-icon="zap" aria-pressed="false" title="Click to go live: off. Turn on to send a slide to the wall with one click." aria-label="Click a slide to send it live"></button>
+          <div class="view" role="group" aria-label="View">
+            <button id="viewList" class="btn quiet icon" data-icon="list" aria-pressed="true" title="List view" aria-label="List view"></button>
+            <button id="viewGrid" class="btn quiet icon" data-icon="grid" aria-pressed="false" title="Grid view" aria-label="Grid view"></button>
+          </div>
         </div>
       </div>
       <div id="playlist" class="rows" role="listbox" aria-label="Slides"></div>
-      <p id="playlistEmpty" class="empty" hidden>No slides yet. Add one below or import images or a PDF.</p>
+      <div id="playlistEmpty" class="empty-state" hidden>
+        <strong>No slides yet</strong>
+        Add a new slide below, or import images or a PDF.
+      </div>
       <div class="foot">
-        <button id="newSlide" class="btn" data-icon="plus">New slide</button>
+        <button id="newSlide" class="btn" data-icon="plus" title="New slide (Ctrl+N)">New slide</button>
         <button id="importSlides" class="btn" data-icon="upload" disabled title="Add images as slides, or turn each page of a PDF into a slide">Import</button>
       </div>
-      <p id="programStatus" class="program-status" role="status" aria-live="polite"></p>
     </section>
 
-    <section class="col center">
-      <div id="monitor" class="monitor">
-        <div class="monitor-bar"><span class="dot"></span><strong id="liveName">Nothing live</strong></div>
-        <div id="preview" class="preview"></div>
-      </div>
+    <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize run of show" tabindex="0" title="Drag to resize. Double-click to reset."></div>
 
-      <div class="deck">
-        <div class="next">
-          <div id="nextName" class="name">Next</div>
-          <div id="nextPreview" class="preview"></div>
+    <section class="col center">
+      <div class="stagearea">
+        <div id="monitor" class="monitor">
+          <div class="monitor-bar">
+            <span class="live-tag"><span class="dot"></span><span id="liveTag">Preview</span></span>
+            <strong id="liveName">Nothing live</strong>
+            <span id="autoNote" class="note"></span>
+            <span id="position" class="position"></span>
+          </div>
+          <div id="preview" class="preview"></div>
+          <div id="autoBar" class="autobar" aria-hidden="true"><i></i></div>
         </div>
-        <div class="controls">
-          <button id="prev" class="btn" title="Previous slide"><span class="lead" data-icon="left">Back</span><kbd>←</kbd></button>
-          <button id="next" class="btn primary" title="Next slide"><span class="lead" data-icon="right">Next</span><kbd>Space</kbd></button>
-          <button id="blackout" class="btn toggle wide" aria-pressed="false" title="Black out the wall"><span class="lead" data-icon="screen-off"><span id="blackoutLabel">Blackout</span></span><kbd>B</kbd></button>
-          <button id="clearText" class="btn wide" title="Remove the text, keep the background"><span class="lead" data-icon="eraser">Clear text</span></button>
-          <div class="logo-pair wide">
-            <button id="logo" class="btn toggle" aria-pressed="false"><span class="lead" data-icon="star"><span id="logoLabel">Logo</span></span></button>
-            <button id="setLogo" class="btn icon" data-icon="image" title="Choose logo image" aria-label="Choose logo image"></button>
+
+        <div class="deck">
+          <div class="next">
+            <div class="next-head"><span class="eyebrow">Next</span><span id="nextName" class="name"></span></div>
+            <div id="nextPreview" class="preview"></div>
+          </div>
+
+          <div class="controls">
+            <div class="row2">
+              <button id="prev" class="btn lg" title="Previous slide"><span class="lead" data-icon="left">Back</span><kbd>←</kbd></button>
+              <button id="next" class="btn lg primary" title="Next slide"><span class="lead" data-icon="right">Next</span><kbd>Space</kbd></button>
+            </div>
+            <div class="row2">
+              <button id="loop" class="btn mode" aria-pressed="false" title="Loop: after the last slide, Next goes back to the first (and Back from the first goes to the last)">
+                <span class="lead" data-icon="repeat">Loop</span><kbd>L</kbd>
+              </button>
+              <div class="auto-pair">
+                <button id="auto" class="btn mode" aria-pressed="false" title="Auto-advance: move to the next slide on its own after the set time. Starts counting once a slide is live.">
+                  <span class="lead" data-icon="timer">Auto</span>
+                </button>
+                <label class="secs" title="Seconds on each slide">
+                  <input id="autoSecs" type="number" min="1" max="600" step="1" value="5" aria-label="Seconds per slide"><span>s</span>
+                </label>
+              </div>
+            </div>
+            <div class="clear-group" role="group" aria-label="Wall controls">
+              <button id="blackout" class="btn tool toggle" data-icon="screen-off" aria-pressed="false" title="Black out the wall"><span id="blackoutLabel">Blackout</span><kbd>B</kbd></button>
+              <button id="clearText" class="btn tool" data-icon="eraser" title="Remove the text, keep the background"><span>Clear text</span><kbd>C</kbd></button>
+              <button id="logo" class="btn tool toggle" data-icon="star" aria-pressed="false"><span id="logoLabel">Logo</span></button>
+              <button id="setLogo" class="btn tool" data-icon="image" title="Choose logo image" aria-label="Choose logo image"></button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div>
+      <div class="media-section">
         <div class="section-head">
           <h2>Media</h2>
           <button id="addMedia" class="btn" data-icon="plus">Add images or videos</button>
         </div>
-        <p id="mediaEmpty" class="empty" style="padding: 0">Add images or looping videos to use as backgrounds.</p>
+        <p id="mediaEmpty" class="empty-box">Add images or looping videos to use as backgrounds.</p>
         <div id="media" class="tiles"></div>
       </div>
     </section>
 
     <aside class="col inspector">
-      <p id="noEditor" class="empty" style="padding: 0">Select a slide to edit it.</p>
+      <p id="noEditor" class="empty">Select a slide to edit it.</p>
       <div id="editor" hidden>
-        <h2>Slide</h2>
-        <div class="fields">
-          <label>Name <input id="edName" maxlength="60"></label>
-          <label>Title <input id="edTitle" maxlength="200"></label>
-          <label>Subtitle <input id="edSub" maxlength="200"></label>
-          <div>
-            <div class="field-label">Text layout</div>
-            <div class="seg" id="edLayout" role="group" aria-label="Text layout">
-              <button type="button" data-layout="center">Centre</button>
-              <button type="button" data-layout="left">Left</button>
-              <button type="button" data-layout="lower">Lower third</button>
+        <div class="insp-head"><h2>Slide</h2><span id="edNumber" class="count"></span></div>
+        <div class="insp-body">
+          <section class="group">
+            <label>Name <input id="edName" maxlength="60"></label>
+          </section>
+          <section class="group">
+            <h3>Text</h3>
+            <label>Title <input id="edTitle" maxlength="200"></label>
+            <label>Subtitle <input id="edSub" maxlength="200"></label>
+            <div>
+              <div class="field-label">Text layout</div>
+              <div class="seg" id="edLayout" role="group" aria-label="Text layout">
+                <button type="button" data-layout="center" data-icon="align-center">Centre</button>
+                <button type="button" data-layout="left" data-icon="align-left">Left</button>
+                <button type="button" data-layout="lower" data-icon="lower-third">Lower third</button>
+              </div>
             </div>
-          </div>
-          <label>Font
-            <select id="edFont">
-              <option value="display">Bold (Anton)</option>
-              <option value="serif">Elegant (Playfair)</option>
-              <option value="clean">Clean (Inter)</option>
-            </select>
-          </label>
-          <div>
-            <div class="field-label">Background</div>
+            <label>Font
+              <select id="edFont">
+                <option value="display">Bold (Anton)</option>
+                <option value="serif">Elegant (Playfair)</option>
+                <option value="clean">Clean (Inter)</option>
+              </select>
+            </label>
+          </section>
+          <section class="group">
+            <h3>Background</h3>
             <div class="pick">
               <select id="edBg" aria-label="Background"></select>
               <button id="edAddMedia" type="button" class="btn icon" data-icon="plus" title="Add an image or video to this slide" aria-label="Add an image or video to this slide"></button>
             </div>
-          </div>
-          <input id="edColor" type="color" aria-label="Background colour">
-          <label id="edFitRow">Picture fit
-            <select id="edFit">
-              <option value="cover">Fill the screen (crop)</option>
-              <option value="contain">Show the whole picture</option>
-            </select>
-          </label>
-          <div class="actions">
-            <button id="edSend" class="btn primary" data-icon="play">Send live</button>
-            <button id="edDelete" class="btn danger" data-icon="trash">Delete slide</button>
+            <div id="edColorRow" class="swatches" role="group" aria-label="Background colour">
+              <input id="edColor" type="color" aria-label="Custom background colour" title="Custom colour">
+            </div>
+            <label id="edFitRow">Picture fit
+              <select id="edFit">
+                <option value="cover">Fill the screen (crop)</option>
+                <option value="contain">Show the whole picture</option>
+              </select>
+            </label>
+          </section>
+        </div>
+        <div class="actions">
+          <button id="edSend" class="btn primary block" data-icon="play">Send live</button>
+          <div class="row2">
+            <button id="edDuplicate" class="btn" data-icon="copy" title="Duplicate this slide (Ctrl+D)">Duplicate</button>
+            <button id="edDelete" class="btn danger" data-icon="trash">Delete</button>
           </div>
         </div>
       </div>
     </aside>
   </main>
+
+  <footer class="statusbar">
+    <p id="programStatus" role="status" aria-live="polite"></p>
+    <div class="hints" aria-label="Keyboard shortcuts">
+      <span><kbd>Space</kbd> Next</span>
+      <span><kbd>←</kbd> Back</span>
+      <span><kbd>B</kbd> Blackout</span>
+      <span><kbd>L</kbd> Loop</span>
+      <span class="opt"><kbd>A</kbd> Auto</span>
+      <span class="opt"><kbd>Home</kbd><kbd>End</kbd> First / last</span>
+      <span class="opt"><kbd>Enter</kbd> Send selected live</span>
+    </div>
+  </footer>
 
   <script src="render.js"></script>
   <script src="control.js"></script>
