@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('sidlak', {
   pickSlideMedia: () => ipcRenderer.invoke('media:pick', 'one').then((items) => items[0] || null),
   pickLogo: () => ipcRenderer.invoke('media:pick', 'image').then((items) => items[0] || null),
   pickSlides: () => ipcRenderer.invoke('slides:pick'),
+  convertMedia: (url, kind) => ipcRenderer.invoke('media:convert', url, kind),
+  onMediaProgress: (cb) => ipcRenderer.on('media:progress', (_e, p) => cb(p)),
   cacheImage: (bytes) => ipcRenderer.invoke('cache:save', bytes),
   saveProgram: (program) => ipcRenderer.invoke('program:save', program),
   loadProgram: () => ipcRenderer.invoke('program:load'),

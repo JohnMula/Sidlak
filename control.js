@@ -425,7 +425,9 @@ async function importSlides() {
     if (!files.length) return;
     for (const file of files) {
       if (file.kind === 'image') {
-        const [item] = addToLibrary([file]);
+        const [ready] = await prepareMedia([file]);
+        if (!ready) continue;
+        const [item] = addToLibrary([ready]);
         addSlide(imageSlideName(item.name), { ...mediaBg(item), fit: 'contain' });
         changed = true;
       } else {
@@ -574,6 +576,75 @@ $('loadProgram').addEventListener('click', async () => {
 
 // ---------- media ----------
 
+// Can this window actually show the file? Videos are test-played and less common picture
+// types test-loaded; a file that fails (HEVC .mov from a phone, .avi, .wmv, TIFF...) is
+// converted by the main process into something that works.
+function canShow(item) {
+  return new Promise((resolve) => {
+    let el;
+    const finish = (ok) => {
+      clearTimeout(timer);
+      if (item.kind === 'video') { el.removeAttribute('src'); el.load(); }
+      resolve(ok);
+    };
+    // If nothing happens for a long time (a slow drive), assume it works rather than convert needlessly.
+    const timer = setTimeout(() => finish(true), 15000);
+    if (item.kind === 'image') {
+      el = new Image();
+      el.onload = () => finish(true);
+      el.onerror = () => finish(false);
+    } else {
+      el = document.createElement('video');
+      el.preload = 'metadata';
+      el.muted = true;
+      // Some unsupported video tracks still load "audio only", which has no picture size.
+      el.onloadedmetadata = () => finish(el.videoWidth > 0);
+      el.onerror = () => finish(false);
+    }
+    el.src = item.url;
+  });
+}
+
+let converting = null; // { url, name } while the main process is converting
+window.sidlak.onMediaProgress(({ url, percent }) => {
+  if (converting && converting.url === url) {
+    $('programStatus').textContent = `Converting ${converting.name} so it can play: ${percent}%`;
+  }
+});
+
+// Makes every picked item playable. Returns the items that are ready; any that could not be
+// converted are reported and left out.
+async function prepareMedia(items) {
+  const ready = [];
+  const failed = [];
+  let convertedCount = 0;
+  const status = $('programStatus');
+  for (const item of items) {
+    if (!item.probe || await canShow(item)) {
+      ready.push(item);
+      continue;
+    }
+    converting = { url: item.url, name: item.name };
+    status.textContent = `Converting ${item.name} so it can play...`;
+    try {
+      const { url } = await window.sidlak.convertMedia(item.url, item.kind);
+      ready.push({ ...item, url, probe: false });
+      convertedCount += 1;
+    } catch (error) {
+      failed.push(`${item.name}: ${error.message}`);
+    } finally {
+      converting = null;
+    }
+  }
+  if (failed.length) {
+    status.textContent = '';
+    alert(`Could not add ${failed.length === 1 ? 'this file' : 'these files'}:\n\n${failed.join('\n\n')}`);
+  } else if (convertedCount) {
+    status.textContent = `Converted ${convertedCount} file${convertedCount === 1 ? '' : 's'} so ${convertedCount === 1 ? 'it' : 'they'} can play.`;
+  }
+  return ready;
+}
+
 // Adds picked files to the library and returns the library entries. A file that is
 // already there is not added a second time.
 function addToLibrary(items) {
@@ -637,7 +708,7 @@ function resetMedia() {
 }
 
 $('addMedia').addEventListener('click', async () => {
-  const items = await window.sidlak.pickMedia();
+  const items = await prepareMedia(await window.sidlak.pickMedia());
   if (!items.length) return;
   const before = media.length;
   addToLibrary(items);
@@ -663,7 +734,8 @@ function setSlideBg(s, bg) {
 async function addMediaToSlide(id) {
   let picked;
   try {
-    picked = await window.sidlak.pickSlideMedia();
+    const first = await window.sidlak.pickSlideMedia();
+    [picked] = first ? await prepareMedia([first]) : [];
   } catch (error) {
     alert(`Could not add that file: ${error.message}`);
     return;
@@ -844,7 +916,8 @@ const clearText = () => {
 $('clearText').addEventListener('click', clearText);
 
 async function chooseLogo() {
-  const item = await window.sidlak.pickLogo();
+  const picked = await window.sidlak.pickLogo();
+  const [item] = picked ? await prepareMedia([picked]) : [];
   if (item) push({ logoUrl: item.url, logoVisible: true });
 }
 $('logo').addEventListener('click', () => {
